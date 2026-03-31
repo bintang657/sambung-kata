@@ -1,415 +1,1392 @@
--- Auto-Typer Sambung Kata V7 (Phantom Edition)
--- Created by kimjong sc
+--[[
+    ╔══════════════════════════════════════════════════════╗
+    ║              SCRIPT KIMJONG v2.0                      ║
+    ║         Auto Answer - Sambung Kata Roblox             ║
+    ║                                                        ║
+    ║  Fitur:                                                ║
+    ║  • Auto Answer dengan deteksi huruf akhiran            ║
+    ║  • Dictionary Bahasa Indonesia built-in                ║
+    ║  • Random Delay (2-5 detik)                            ║
+    ║  • Auto Join Round                                     ║
+    ║  • Anti-AFK                                            ║
+    ║  • Word Logger                                         ║
+    ║  • Custom Word Input                                   ║
+    ╚══════════════════════════════════════════════════════════╝
+--]]
 
+-- ============================================================
+-- BAGIAN 1: INISIALISASI GLOBAL & PROTEKSI
+-- ============================================================
+
+-- Variabel kontrol global agar bisa diakses dari luar script
+_G.KimjongEnabled = true        -- Master toggle untuk seluruh script
+_G.KimjongAutoAnswer = true     -- Toggle auto answer
+_G.KimjongAutoJoin = true       -- Toggle auto join round
+_G.KimjongAntiAFK = true        -- Toggle anti-AFK
+_G.KimjongDelay = {2, 5}        -- Range delay (min, max) dalam detik
+
+-- Referensi service Roblox yang sering dipakai
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TextChatService = game:GetService("TextChatService")
-local CoreGui = game:GetService("CoreGui")
-local TeleportService = game:GetService("TeleportService")
-local VirtualUser = game:GetService("VirtualUser")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local StarterGui = game:GetService("StarterGui")
 
-local isEnabled = false
-local isMinimized = false
-local isBrutal = false
-local isTaunting = false
-local isIntimidate = false
-local targetPlayer = ""
-local usedWords = {}
-local kamus = {}
-local isLoaded = false
-local wordsTyped = 0
+-- Referensi player lokal
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
-local killerLetters = {x = true, q = true, z = true, v = true, f = true, y = true, k = true}
+-- Tabel untuk menyimpan log kata yang sudah digunakan
+local UsedWordsLog = {}
 
--- Taunt dengan memanggil nama musuh (%s akan otomatis diganti nama mereka)
-local smartTaunts = {
-    "ez banget si %s", 
-    "lama lu %s", 
-    "ngetik pake jempol kaki ya %s?", 
-    "gitu doang %s?", 
-    "turun mesin lu %s?", 
-    "bot kah %s?", 
-    "yawn, %s bosenin"
+-- Tabel untuk menyimpan kata yang sudah dipakai di ronde ini (hindari duplikat)
+local UsedThisRound = {}
+
+-- ============================================================
+-- BAGIAN 2: DATABASE KATA BAHASA INDONESIA
+-- Dikelompokkan berdasarkan huruf awal (A-Z)
+-- ============================================================
+
+local KamusIndonesia = {
+    ["A"] = {
+        "Abjad", "Absen", "Acara", "Adik", "Adil", "Agama", "Agar", "Ahli",
+        "Air", "Ajaib", "Ajar", "Akal", "Akan", "Akar", "Akhir", "Aksi",
+        "Aktif", "Aku", "Akun", "Alam", "Alamat", "Alat", "Album", "Alergi",
+        "Aliran", "Aman", "Amal", "Ambon", "Ambil", "Ampun", "Anak", "Ancam",
+        "Anda", "Aneh", "Angin", "Angka", "Angkat", "Anjing", "Antara", "Antar",
+        "Anting", "Apel", "Api", "Arah", "Arti", "Arisan", "Armada", "Asam",
+        "Asin", "Asli", "Asing", "Asrama", "Atap", "Atur", "Awak", "Awal",
+        "Ayah", "Ayam", "Ayun", "Azab", "Abadi", "Abstrak", "Acuan", "Adaptasi",
+        "Administrasi", "Adopsi", "Advertensi", "Afeksi", "Agenda", "Agregat",
+        "Agresif", "Agustus", "Akademi", "Akbar", "Akrab", "Aksara", "Akurat",
+        "Alami", "Alasan", "Alergi", "Alfabet", "Algoritma", "Almari", "Altar",
+        "Alternatif", "Aluminium", "Amanah", "Ambisi", "Amfibi", "Amnesti",
+        "Amputasi", "Analisis", "Anggap", "Anggota", "Anggrek", "Angkasa",
+        "Animasi", "Antar", "Antik", "Antisipasi", "Apartemen", "Aplikasi",
+        "Apresiasi", "April", "Aquarium", "Arbitrasi", "Arena", "Argumen",
+        "Aristokrat", "Aroma", "Arsip", "Arsitektur", "Artikel", "Artistik",
+        "Aspirasi", "Asosiasi", "Asteroid", "Astronomi", "Asumsi", "Atensi",
+        "Atlas", "Atmosfer", "Atom", "Atraksi", "Atribut", "Audisi", "Aula"
+    },
+
+    ["B"] = {
+        "Babi", "Baca", "Badai", "Badan", "Bagal", "Bagai", "Bagaimana", "Bagi",
+        "Bagian", "Bagus", "Bahan", "Bahasa", "Bahaya", "Bahu", "Baik", "Baja",
+        "Bajak", "Baju", "Bakar", "Bakso", "Bakteri", "Balai", "Balas", "Balik",
+        "Balkon", "Balok", "Bambu", "Ban", "Banding", "Bangga", "Bangku", "Bangsa",
+        "Bangun", "Banjir", "Bank", "Bantu", "Banyak", "Bapak", "Barang", "Barat",
+        "Baris", "Baru", "Basah", "Basi", "Basis", "Batas", "Baterai", "Batik",
+        "Batin", "Batu", "Batuk", "Bau", "Bawa", "Bawah", "Bawang", "Bayam",
+        "Bayang", "Bayar", "Bayi", "Bazar", "Bebas", "Beban", "Bebek", "Beberapa",
+        "Bedah", "Beda", "Begitu", "Bekas", "Bekerja", "Bekerjasama", "Belakang",
+        "Belajar", "Belanja", "Beli", "Belum", "Benang", "Benar", "Bencana",
+        "Benda", "Bendera", "Bengkel", "Benih", "Benteng", "Bentuk", "Beras",
+        "Berani", "Berat", "Beri", "Berita", "Berkat", "Berlian", "Bersih",
+        "Besok", "Besar", "Besi", "Betul", "Biar", "Biasa", "Biaya", "Bibir",
+        "Bicara", "Bidang", "Bijak", "Biji", "Bimbang", "Bimbing", "Bintang",
+        "Biola", "Bioskop", "Biru", "Bisa", "Bisik", "Bisnis", "Bobot", "Bocah",
+        "Bocor", "Bohong", "Bola", "Boleh", "Bom", "Boneka", "Bonus", "Bosan",
+        "Botol", "Buah", "Buat", "Bubuk", "Budak", "Budaya", "Bukit", "Buku",
+        "Bulan", "Bulat", "Bumi", "Bunga", "Bunuh", "Bunyi", "Bursa", "Buruk",
+        "Burung", "Busa", "Busana", "Busuk", "Butir", "Butuh"
+    },
+
+    ["C"] = {
+        "Cabai", "Cabang", "Cabut", "Cacat", "Cacah", "Cacing", "Cadang",
+        "Cagar", "Cahaya", "Cairan", "Cakar", "Cakap", "Cakram", "Cakrawala",
+        "Calon", "Campur", "Canggih", "Cantik", "Capai", "Capek", "Cara",
+        "Cari", "Catat", "Cat", "Catur", "Cawan", "Cedera", "Cekatan",
+        "Celah", "Celana", "Cemas", "Cemara", "Cemerlang", "Cendekia",
+        "Cengkeh", "Cepat", "Cerah", "Ceramah", "Cerdaskan", "Cerdas",
+        "Cerita", "Cermin", "Cetek", "Cetak", "Cicak", "Cinta", "Cipta",
+        "Ciri", "Cita", "Citarasa", "Coklat", "Contoh", "Copot", "Coreng",
+        "Cuaca", "Cuci", "Cukup", "Cumi", "Curi", "Curiga"
+    },
+
+    ["D"] = {
+        "Daerah", "Daftar", "Daging", "Dagu", "Dahulu", "Dakon", "Dalam",
+        "Damai", "Dampak", "Dana", "Danau", "Dangkal", "Dapat", "Dapur",
+        "Darah", "Darat", "Dari", "Darurat", "Dasar", "Dasi", "Data",
+        "Datang", "Datar", "Daun", "Daya", "Debu", "Dedikasi", "Dekat",
+        "Dekorasi", "Delman", "Demam", "Demi", "Demikian", "Demokrasi",
+        "Dendang", "Dengan", "Dengar", "Depan", "Deposit", "Dermawan",
+        "Desa", "Desain", "Desember", "Desimal", "Detik", "Dewa", "Dewasa",
+        "Diagnosis", "Dialog", "Diam", "Didik", "Digital", "Dinding",
+        "Dingin", "Dinosaurus", "Diploma", "Diskon", "Diskusi", "Distribusi",
+        "Dokter", "Dokumen", "Dolar", "Domba", "Dominan", "Dongeng",
+        "Dorong", "Dosa", "Dosen", "Drama", "Dubes", "Dua", "Duduk",
+        "Dukungan", "Dulu", "Dunia", "Duri", "Dusta", "Dusun", "Duta"
+    },
+
+    ["E"] = {
+        "Edar", "Edisi", "Efek", "Efektif", "Efisien", "Ejaan", "Ekonomi",
+        "Ekosistem", "Ekspresi", "Elastis", "Elemen", "Elok", "Email",
+        "Emas", "Emosi", "Empat", "Enak", "Energi", "Engkau", "Era",
+        "Erti", "Esok", "Etika", "Evaluasi", "Evolusi", "Ekspansi",
+        "Eksperimen", "Eksplorasi", "Ekspor", "Ekstra", "Eksekutif",
+        "Elaborasi", "Elektrik", "Elevator", "Eliminasi", "Emansipasi",
+        "Embargo", "Embun", "Emigrasi", "Emisari", "Empati", "Empiris",
+        "Endap", "Epidemi", "Episode", "Ergonomi", "Erosi", "Erupsi",
+        "Esai", "Eskalasi", "Estimasi", "Estrogen", "Etnis", "Evakuasi"
+    },
+
+    ["F"] = {
+        "Fakir", "Fakta", "Faktor", "Fakultas", "Familiar", "Fantasi",
+        "Farmasi", "Fase", "Fasilitas", "Fatal", "Favorit", "Februari",
+        "Fenomena", "Festival", "Figur", "Fiksi", "Film", "Filsafat",
+        "Final", "Fisik", "Flora", "Fokus", "Fondasi", "Formal", "Format",
+        "Formula", "Formulir", "Fosil", "Foto", "Fragmen", "Fraksi",
+        "Frekuensi", "Frustasi", "Fungsi", "Fungsional", "Furnitur",
+        "Futsal"
+    },
+
+    ["G"] = {
+        "Gabung", "Gadai", "Gadis", "Gaduh", "Gagah", "Gagal", "Gagap",
+        "Gagas", "Gaji", "Galaksi", "Galang", "Galeri", "Gali", "Gambar",
+        "Gampang", "Ganggu", "Ganti", "Gantung", "Garam", "Garansi",
+        "Garis", "Garpu", "Garuda", "Gas", "Gatal", "Gaun", "Gaya",
+        "Gelap", "Gelas", "Gelombang", "Gemar", "Gempa", "Gendang",
+        "Generasi", "Genius", "Geografi", "Gerak", "Gerbang", "Gerombolan",
+        "Getaran", "Gigih", "Gigit", "Gila", "Giliran", "Gitar", "Gizi",
+        "Global", "Gol", "Golongan", "Goreng", "Gosip", "Gotong", "Gratis",
+        "Gudang", "Gula", "Gulung", "Guna", "Guntur", "Gunung", "Gurun",
+        "Guru", "Gusi", "Gusar"
+    },
+
+    ["H"] = {
+        "Habitat", "Hadap", "Hadiah", "Hadir", "Hafal", "Hak", "Hakim",
+        "Hal", "Halaman", "Halang", "Hale", "Halus", "Hambat", "Hamil",
+        "Hampir", "Hancur", "Handuk", "Hangat", "Hanya", "Hapus", "Harap",
+        "Harga", "Hari", "Harimau", "Harmoni", "Harta", "Haru", "Harum",
+        "Haruskan", "Harus", "Hasil", "Hasrat", "Hati", "Haus", "Hawa",
+        "Hebat", "Helai", "Helikopter", "Hemat", "Hendak", "Hening",
+        "Herbal", "Hewan", "Hiasan", "Hibah", "Hiburan", "Hidangan",
+        "Hidrogen", "Hidup", "Hijau", "Hikmah", "Hilang", "Hindari",
+        "Hinggap", "Hitam", "Hitung", "Hobi", "Honor", "Hormat", "Hotel",
+        "Hubung", "Hujan", "Hukum", "Hulu", "Humor", "Huni", "Hutan",
+        "Hutang"
+    },
+
+    ["I"] = {
+        "Ibadah", "Ibu", "Ide", "Ideal", "Identitas", "Ideologi", "Ijin",
+        "Ikan", "Ikat", "Iklan", "Iklim", "Ikut", "Ilham", "Ilmu",
+        "Ilustrasi", "Imajinasi", "Imbang", "Imbas", "Imigran", "Impian",
+        "Impor", "Indah", "Indeks", "Independen", "Indikasi", "Individu",
+        "Industri", "Infeksi", "Inflasi", "Informasi", "Ingin", "Ingat",
+        "Inisiatif", "Injak", "Inovatif", "Inovasi", "Input", "Insinyur",
+        "Inspeksi", "Inspirasi", "Instalasi", "Institusi", "Instruksi",
+        "Instrumen", "Integrasi", "Intelektual", "Intelijen", "Interaksi",
+        "Internal", "Internasional", "Internet", "Interpretasi", "Interval",
+        "Inti", "Intip", "Investasi", "Investor", "Irama", "Iri", "Irigasi",
+        "Iring", "Ironi", "Isi", "Islam", "Isolasi", "Istana", "Istilah",
+        "Istimewa", "Istirahat", "Istri", "Isyarat", "Itik", "Itu", "Izin"
+    },
+
+    ["J"] = {
+        "Jabat", "Jadwal", "Jaga", "Jagat", "Jagung", "Jahat", "Jahit",
+        "Jajak", "Jajaran", "Jalan", "Jalur", "Jam", "Jamah", "Jaman",
+        "Jamin", "Jamur", "Janda", "Jangan", "Jangka", "Janji", "Jantung",
+        "Jarak", "Jari", "Jaring", "Jarum", "Jasa", "Jatah", "Jatuh",
+        "Jauh", "Jawab", "Jawaban", "Jaya", "Jejak", "Jelang", "Jelas",
+        "Jelek", "Jembatan", "Jemput", "Jenaka", "Jenazah", "Jendela",
+        "Jenis", "Jenjang", "Jerami", "Jernih", "Jeruk", "Jidat", "Jihad",
+        "Jinak", "Jinjing", "Jiwa", "Joki", "Jomblo", "Jual", "Juara",
+        "Judi", "Juga", "Jujur", "Juluk", "Jumlah", "Jumpa", "Jungkir",
+        "Jurai", "Juri", "Jurnal", "Juru", "Jurusan", "Justru", "Juta"
+    },
+
+    ["K"] = {
+        "Kabar", "Kabel", "Kabinet", "Kabur", "Kabut", "Kaca", "Kadang",
+        "Kado", "Kail", "Kain", "Kait", "Kakak", "Kaki", "Kalah", "Kalau",
+        "Kali", "Kalian", "Kalimat", "Kalung", "Kamar", "Kamera", "Kami",
+        "Kampanye", "Kampung", "Kampus", "Kamu", "Kanan", "Kandang",
+        "Kandidat", "Kanker", "Kantong", "Kantor", "Kapan", "Kapas",
+        "Kapasitas", "Kapital", "Karang", "Karena", "Karir", "Kartu",
+        "Karya", "Karyawan", "Kasih", "Kasur", "Kata", "Kaus", "Kawal",
+        "Kawan", "Kawasan", "Kawin", "Kaya", "Kayu", "Kebab", "Kebaya",
+        "Kebun", "Kecam", "Kecil", "Kedua", "Kekuatan", "Kelapa",
+        "Kelas", "Keluar", "Keluarga", "Kemah", "Kembali", "Kembang",
+        "Kemeja", "Kemenangan", "Kemerdekaan", "Kemiskinan", "Kena",
+        "Kendali", "Kendaraan", "Kentang", "Kepal", "Kepala", "Kerja",
+        "Keras", "Kertas", "Kesehatan", "Ketua", "Keuangan", "Kewajiban",
+        "Khas", "Khawatir", "Khusus", "Kilat", "Kimia", "Kini", "Kipas",
+        "Kira", "Kirim", "Kisi", "Kisah", "Kita", "Klaim", "Klinik",
+        "Kode", "Kolam", "Koleksi", "Komentar", "Kompas", "Kompetisi",
+        "Komputer", "Komunikasi", "Kondisi", "Konflik", "Konser", "Kontrak",
+        "Kontrol", "Kopi", "Koran", "Korban", "Korupsi", "Kosong", "Kota",
+        "Kotak", "Kreasi", "Kredit", "Krisis", "Kritik", "Kuasa", "Kuat",
+        "Kubik", "Kuda", "Kue", "Kuil", "Kulit", "Kunci", "Kunjung",
+        "Kuota", "Kupu", "Kurang", "Kursi", "Kursus", "Kurun"
+    },
+
+    ["L"] = {
+        "Label", "Laboratorium", "Labu", "Ladang", "Lagu", "Lahan", "Lahir",
+        "Lain", "Laki", "Laku", "Lalu", "Lama", "Lamar", "Lambat", "Lambung",
+        "Lampu", "Lancar", "Landasan", "Langit", "Langkah", "Langsung",
+        "Lanjut", "Lantai", "Lapak", "Lapang", "Lapisan", "Lapar", "Lapor",
+        "Larangan", "Lari", "Larut", "Latihan", "Laut", "Lawan", "Layak",
+        "Layan", "Layar", "Lazim", "Lebah", "Lebar", "Lebih", "Ledak",
+        "Legal", "Legenda", "Leher", "Lekat", "Lemah", "Lemak", "Lembaga",
+        "Lembah", "Lembar", "Lembut", "Lengkap", "Lepas", "Letak", "Level",
+        "Lewat", "Lihat", "Liku", "Limas", "Limbah", "Lindung", "Lingkaran",
+        "Lingkungan", "Lintas", "Lipat", "Listrik", "Liter", "Logam",
+        "Logika", "Lokal", "Lokasi", "Loket", "Lomba", "Lompat", "Longsor",
+        "Loteng", "Luang", "Luar", "Luas", "Lucu", "Luka", "Lukis",
+        "Lumba", "Lumpur", "Lunak", "Luncur", "Lupa", "Luput", "Lurus",
+        "Lusa", "Lusuh", "Lutut"
+    },
+
+    ["M"] = {
+        "Maaf", "Macan", "Macam", "Macet", "Magang", "Mahal", "Mahasiswa",
+        "Mahir", "Main", "Maju", "Makan", "Makanan", "Makar", "Makhluk",
+        "Makna", "Maksimal", "Maksud", "Malam", "Malas", "Malu", "Mampu",
+        "Manajemen", "Mandi", "Mandiri", "Manfaat", "Mangga", "Mangkok",
+        "Manis", "Mantan", "Mantel", "Manusia", "Mapan", "Marah", "Maret",
+        "Marga", "Marhaban", "Masjid", "Masak", "Masalah", "Masih",
+        "Masing", "Masuk", "Masyarakat", "Mata", "Matahari", "Material",
+        "Matang", "Matematika", "Materi", "Mati", "Mawar", "Mayat",
+        "Media", "Medis", "Meja", "Mekar", "Melarang", "Melati", "Melek",
+        "Melihat", "Melodi", "Melon", "Memang", "Memori", "Menang",
+        "Menaruh", "Menari", "Mendung", "Mengerti", "Mentah", "Mentega",
+        "Menu", "Merah", "Merasa", "Merdeka", "Merek", "Mereka", "Meriah",
+        "Merpati", "Mesin", "Meski", "Mewah", "Milik", "Mimpi", "Minder",
+        "Mineral", "Minggu", "Minim", "Minta", "Minum", "Minyak", "Mirip",
+        "Misi", "Miskin", "Misteri", "Modal", "Model", "Modern", "Modul",
+        "Mogok", "Mohon", "Molekul", "Momen", "Monitor", "Monyet", "Moral",
+        "Motivasi", "Motor", "Muatan", "Muda", "Mudah", "Mulia", "Mulai",
+        "Mulut", "Muncul", "Mundur", "Mungkin", "Murah", "Murid", "Murni",
+        "Museum", "Musik", "Musim", "Mustahil", "Mutu", "Muka", "Mulus"
+    },
+
+    ["N"] = {
+        "Nabi", "Nafas", "Nafkah", "Nafsu", "Naga", "Naik", "Nakal",
+        "Nama", "Nampak", "Nanas", "Nanti", "Napas", "Narkoba", "Narasi",
+        "Nasib", "Nasional", "Nasihat", "Naskah", "Natal", "Naungan",
+        "Navigasi", "Negara", "Negeri", "Negatif", "Negosiasi", "Nekad",
+        "Nekat", "Nelayan", "Nenek", "Neraca", "Neraka", "Neto", "Netral",
+        "Nikah", "Nikmat", "Nilai", "Nisbah", "Niscaya", "Noda", "Nol",
+        "Nomor", "Nonaktif", "Nongkrong", "Normal", "Norma", "Nostalgia",
+        "Nota", "Novel", "November", "Nuansa", "Nujum", "Nukilan", "Nuri",
+        "Nutrisi", "Nyala", "Nyaman", "Nyanyi", "Nyaris", "Nyata", "Nyawa",
+        "Nyeri", "Nyonya"
+    },
+
+    ["O"] = {
+        "Obat", "Objek", "Objektivitas", "Obral", "Observasi", "Obsesi",
+        "Obyek", "Oktober", "Olah", "Olahraga", "Oleh", "Olimpiade",
+        "Ombak", "Omong", "Omset", "Ondel", "Ongkos", "Online", "Operasi",
+        "Opini", "Optimis", "Orang", "Orbit", "Order", "Organ", "Organisasi",
+        "Oriental", "Orisinil", "Ornamen", "Otomat", "Otomatis", "Otonom",
+        "Otonomi", "Otoritas", "Otak", "Otot"
+    },
+
+    ["P"] = {
+        "Pabean", "Pacar", "Padi", "Pagar", "Pagi", "Paham", "Pahlawan",
+        "Pajak", "Pakai", "Pakaian", "Paket", "Paku", "Paling", "Palsu",
+        "Palu", "Pameran", "Panas", "Pancing", "Pandai", "Pandang",
+        "Panduan", "Panggil", "Panggang", "Pangkal", "Pangkat", "Panggung",
+        "Panjang", "Pantas", "Pantai", "Panti", "Pantul", "Papua", "Papan",
+        "Parah", "Parasit", "Pariwisata", "Parkir", "Partai", "Paruh",
+        "Pasar", "Pasang", "Pasien", "Pasir", "Paspor", "Pasti", "Pasukan",
+        "Patah", "Patuh", "Patung", "Pawai", "Payung", "Pecah", "Pedang",
+        "Pedas", "Pedoman", "Peduli", "Pegawai", "Pekerja", "Pelabuhan",
+        "Pelajar", "Pelanggan", "Pelangi", "Pelayan", "Peluang", "Pemuda",
+        "Penari", "Pencarian", "Pendidikan", "Penduduk", "Pengadilan",
+        "Pengalaman", "Pengaruh", "Pengusaha", "Penjual", "Pensiun",
+        "Pentas", "Penting", "Penuh", "Penulis", "Pepaya", "Perak",
+        "Perahu", "Peran", "Perang", "Peraturan", "Percaya", "Perdana",
+        "Perempuan", "Perhitungan", "Periksa", "Perintah", "Periodik",
+        "Perkara", "Permainan", "Permisi", "Pernah", "Pernyataan",
+        "Persegi", "Persik", "Pertama", "Pertemuan", "Pertunjukan", "Perut",
+        "Pesan", "Pesawat", "Peserta", "Peta", "Petani", "Petir", "Petisi",
+        "Piala", "Piano", "Pidana", "Pidato", "Pihak", "Pikir", "Piknik",
+        "Pilih", "Pimpin", "Pinang", "Pindah", "Pinggir", "Pinjam", "Pintar",
+        "Pintu", "Pipa", "Pisang", "Pisau", "Pokok", "Polisi", "Politik",
+        "Polos", "Pompa", "Pondok", "Populasi", "Populer", "Pori", "Porsi",
+        "Pos", "Positif", "Poster", "Potensi", "Potong", "Praktik",
+        "Prakarya", "Prasarana", "Presiden", "Prestasi", "Pribadi", "Prima",
+        "Prinsip", "Prioritas", "Produk", "Produksi", "Profesi", "Profil",
+        "Program", "Proyek", "Proses", "Provinsi", "Publik", "Pucat",
+        "Puisi", "Pujian", "Pukul", "Pula", "Pulau", "Pulih", "Pulsa",
+        "Puncak", "Pungut", "Pusat", "Pusing", "Putih", "Putra", "Putri",
+        "Putus"
+    },
+
+    ["Q"] = {
+        "Qari", "Quran"
+    },
+
+    ["R"] = {
+        "Raba", "Rabies", "Racun", "Radiasi", "Radio", "Raga", "Ragu",
+        "Rahang", "Rahasia", "Rahim", "Rahmat", "Raja", "Rajin", "Rakyat",
+        "Rambut", "Ramai", "Ramah", "Rampas", "Rancang", "Rangka", "Rangkai",
+        "Rangkul", "Ranjang", "Rantai", "Rapat", "Rapor", "Rasa", "Rasio",
+        "Rasional", "Rata", "Ratusan", "Rawan", "Rawat", "Rayakan", "Reaksi",
+        "Realistis", "Realisasi", "Rebut", "Redaksi", "Refleksi", "Reformasi",
+        "Regulator", "Rekan", "Rekam", "Rekomendasi", "Rekor", "Relasi",
+        "Relawan", "Relief", "Remaja", "Remeh", "Rempah", "Renang", "Rencana",
+        "Rendah", "Renovasi", "Renta", "Repot", "Reproduksi", "Reputasi",
+        "Resensi", "Resep", "Resmi", "Resolusi", "Respek", "Respon",
+        "Restoran", "Restu", "Retas", "Retribusi", "Reuni", "Revolusi",
+        "Rezeki", "Riang", "Ribu", "Riil", "Rilis", "Rimba", "Rinci",
+        "Rindu", "Ringan", "Ringkas", "Rintik", "Risiko", "Riset", "Ritual",
+        "Rokok", "Romantis", "Rombongan", "Rongga", "Rosot", "Ruang", "Rubah",
+        "Rugu", "Rujak", "Rujuk", "Rumah", "Rumit", "Rumpun", "Rumus",
+        "Runduk", "Runtuh", "Rupa", "Rupiah", "Rusak", "Rute", "Rutin"
+    },
+
+    ["S"] = {
+        "Saat", "Sabtu", "Sabun", "Saja", "Sajak", "Saji", "Sakit",
+        "Saksikan", "Saksi", "Saku", "Salah", "Saldo", "Salin", "Saling",
+        "Salju", "Salon", "Saman", "Samar", "Sambil", "Sambung", "Sampah",
+        "Sampai", "Samping", "Sana", "Sandal", "Sandang", "Sandera",
+        "Sangat", "Sanggup", "Santai", "Santap", "Sapu", "Saran", "Sarang",
+        "Sari", "Sarjana", "Sasaran", "Satelit", "Satu", "Sastra", "Saudara",
+        "Saus", "Sawah", "Sayang", "Sayap", "Sayur", "Sedap", "Sedikit",
+        "Sedia", "Sedih", "Segar", "Segera", "Sehat", "Sejarah", "Sejak",
+        "Sekedar", "Sekolah", "Selai", "Selalu", "Selam", "Selamat",
+        "Selasa", "Selatan", "Selenggara", "Selesai", "Seluruh", "Semak",
+        "Semangat", "Semen", "Semester", "Sempat", "Sempit", "Sempurna",
+        "Semua", "Senam", "Senang", "Sendi", "Sendiri", "Seni", "Senin",
+        "Senior", "Senjata", "Sentuh", "Sepak", "Sepatu", "Sepeda",
+        "September", "Sepuluh", "Serahkan", "Serai", "Serangan", "Serbuk",
+        "Sering", "Serius", "Sertifikat", "Serum", "Sesama", "Sesuai",
+        "Setia", "Setir", "Setuju", "Sewa", "Siaga", "Siang", "Siap",
+        "Siapa", "Sifat", "Sikap", "Siklus", "Siku", "Silakan", "Silang",
+        "Simpan", "Sindrom", "Sinyal", "Sistem", "Sisa", "Sisik", "Sisir",
+        "Siswa", "Situs", "Situasi", "Soal", "Solusi", "Sopan", "Sorak",
+        "Sorga", "Sosial", "Stabilitas", "Staf", "Standar", "Statistik",
+        "Status", "Stimulus", "Stok", "Strategi", "Struktur", "Studi",
+        "Subjek", "Subur", "Sudah", "Sudut", "Suka", "Sukses", "Sulit",
+        "Sultan", "Sumber", "Sumur", "Sungai", "Sungguh", "Suntik",
+        "Supaya", "Surat", "Surga", "Suruh", "Survei", "Susu", "Susunan",
+        "Syarat", "Syukur"
+    },
+
+    ["T"] = {
+        "Tabel", "Tabir", "Tabrak", "Tabung", "Tadi", "Tahan", "Tahap",
+        "Tahu", "Tahun", "Tajam", "Takdir", "Takut", "Tali", "Tambah",
+        "Tambang", "Taman", "Tamat", "Tamu", "Tanah", "Tanda", "Tanduk",
+        "Tangan", "Tangga", "Tanggal", "Tanggap", "Tangguh", "Tanggung",
+        "Tangis", "Tangkap", "Tangki", "Tanjung", "Tantang", "Tanya",
+        "Tapi", "Tarif", "Tarik", "Taruh", "Tarung", "Tasbih", "Tata",
+        "Tatap", "Tawa", "Tawar", "Tawaran", "Tebal", "Tebang", "Tebing",
+        "Teduh", "Tegas", "Teguh", "Tekad", "Tekanan", "Teknik", "Teknologi",
+        "Teladan", "Telekomunikasi", "Telepon", "Televisi", "Teliti",
+        "Telur", "Tema", "Teman", "Tembak", "Tembaga", "Tembok", "Tempo",
+        "Tempat", "Tenaga", "Tenang", "Tendang", "Tengah", "Tenggelam",
+        "Tentang", "Tentu", "Tepat", "Tepi", "Terbang", "Terbit",
+        "Terendah", "Terigu", "Terima", "Terjadi", "Terjemah", "Terjun",
+        "Terkait", "Terlalu", "Ternak", "Teror", "Terpaksa", "Tertib",
+        "Terus", "Tertulis", "Tetap", "Tetapi", "Tetes", "Tewas", "Tiap",
+        "Tidak", "Tidur", "Tiga", "Tikus", "Tiket", "Timbang", "Timbal",
+        "Timun", "Timur", "Tindak", "Tinggi", "Tingkat", "Tinjau", "Tinta",
+        "Tipe", "Tipis", "Tirai", "Tiru", "Titik", "Titip", "Tiup",
+        "Tokoh", "Toleransi", "Tolong", "Toko", "Tombol", "Tonggak",
+        "Tonton", "Topan", "Topi", "Topik", "Total", "Tradisi", "Tragedi",
+        "Transaksi", "Transparan", "Transportasi", "Trauma", "Tropis",
+        "Truk", "Tuan", "Tuang", "Tubuh", "Tuduh", "Tugu", "Tuhan",
+        "Tujuan", "Tukang", "Tulang", "Tulis", "Tulisan", "Tumbuh",
+        "Tumpah", "Tumpu", "Tunai", "Tunda", "Tunggu", "Tunjuk",
+        "Tuntut", "Turis", "Turun", "Tusuk", "Tutup"
+    },
+
+    ["U"] = {
+        "Uang", "Uap", "Ubah", "Ubin", "Ucap", "Udang", "Udara", "Uji",
+        "Ujian", "Ujung", "Ukir", "Ukur", "Ulama", "Ulang", "Ulangi",
+        "Ular", "Ulas", "Ulasan", "Ulat", "Ultimatum", "Umpan", "Umum",
+        "Umur", "Undang", "Undian", "Unggas", "Unggul", "Ungkap", "Unik",
+        "Unit", "Universal", "Universitas", "Untuk", "Untung", "Upacara",
+        "Upah", "Upaya", "Urai", "Urap", "Urat", "Urgensi", "Urus",
+        "Urut", "Usaha", "Usang", "Usia", "Usik", "Usir", "Ustaz",
+        "Usul", "Usungan", "Utama", "Utang", "Utara", "Utuh", "Utusan"
+    },
+
+    ["V"] = {
+        "Vaksin", "Valid", "Validasi", "Valuta", "Vandal", "Variabel",
+        "Variasi", "Vas", "Vegetasi", "Ventilasi", "Verifikasi", "Versi",
+        "Veto", "Video", "Virtual", "Virus", "Visi", "Vital", "Vitamin",
+        "Vokal", "Volume", "Volunter", "Vonis"
+    },
+
+    ["W"] = {
+        "Wabah", "Wadah", "Wafat", "Wahana", "Wahyu", "Wajah", "Wajib",
+        "Wakil", "Waktu", "Wali", "Walau", "Wangi", "Wanita", "Waras",
+        "Warga", "Warian", "Waris", "Warna", "Warta", "Warung", "Wasiat",
+        "Waspada", "Wawancara", "Wayang", "Wilayah", "Wirausaha", "Wisata",
+        "Wisatawan", "Wisma", "Wisuda", "Wujud"
+    },
+
+    ["X"] = {
+        "Xenon", "Xerografi", "Xilofon"
+    },
+
+    ["Y"] = {
+        "Yaitu", "Yakin", "Yang", "Yatim", "Yayasan", "Yogyakarta",
+        "Yunani", "Yurisdiksi", "Yuridis"
+    },
+
+    ["Z"] = {
+        "Zaitun", "Zakat", "Zaman", "Zebra", "Zeni", "Ziarah", "Zona",
+        "Zodiak", "Zoologi"
+    }
 }
 
--- DAFTAR VIP (Aman dari Sniper & Taunt)
-local vipWhitelist = {
-    ["keyren"] = true, -- Jangan hapus :)
-    ["nama_teman_kamu"] = true 
-}
+-- ============================================================
+-- BAGIAN 3: LOAD UI LIBRARY (RAYFIELD)
+-- ============================================================
 
--- ==========================================
--- ANTI-AFK (Otomatis Aktif, Mode Senyap)
--- ==========================================
-LocalPlayer.Idled:Connect(function()
-    VirtualUser:CaptureController()
-    VirtualUser:ClickButton2(Vector2.new())
+-- Memuat Rayfield UI Library dari repository resmi
+-- pcall digunakan agar script tidak crash jika library gagal dimuat
+local Rayfield
+local uiLoaded = false
+
+local success, err = pcall(function()
+    Rayfield = loadstring(game:HttpGet(
+        'https://sirius.menu/rayfield'
+    ))()
+    uiLoaded = true
 end)
 
--- ==========================================
--- UI SETUP (Mobile Optimized & Ringan)
--- ==========================================
-local success, guiParent = pcall(function() return CoreGui end)
-if not success then guiParent = LocalPlayer:WaitForChild("PlayerGui") end
+if not success then
+    warn("[KimJong] Gagal memuat Rayfield Library: " .. tostring(err))
+    warn("[KimJong] Mencoba fallback sederhana...")
+    
+    -- Fallback: Buat notifikasi sederhana jika library gagal dimuat
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = "Script KimJong",
+            Text = "Gagal memuat UI Library. Script berjalan tanpa GUI.",
+            Duration = 10
+        })
+    end)
+end
 
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "KimjongAutoTyperV7"
-screenGui.ResetOnSpawn = false
-screenGui.Parent = guiParent
+-- ============================================================
+-- BAGIAN 4: SETUP UI WINDOW & TABS
+-- ============================================================
 
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 230, 0, 230)
-mainFrame.Position = UDim2.new(0.5, -115, 0, 20)
-mainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 15)
-mainFrame.BorderSizePixel = 1
-mainFrame.BorderColor3 = Color3.fromRGB(150, 0, 255)
-mainFrame.Active = true
-mainFrame.Draggable = true
-mainFrame.Parent = screenGui
-Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 6)
+local Window, MainTab, LogTab, SettingsTab
 
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, -70, 0, 20)
-titleLabel.Position = UDim2.new(0, 5, 0, 2)
-titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "👻 KIMJONG SC V7 👻"
-titleLabel.TextColor3 = Color3.fromRGB(150, 50, 255)
-titleLabel.Font = Enum.Font.GothamBlack
-titleLabel.TextSize = 13
-titleLabel.Parent = mainFrame
+if uiLoaded and Rayfield then
+    local uiSuccess, uiErr = pcall(function()
+        -- Membuat Window utama
+        Window = Rayfield:CreateWindow({
+            Name = "🚀 Script KimJong v2.0",
+            LoadingTitle = "Script KimJong",
+            LoadingSubtitle = "Auto Answer Sambung Kata",
+            ConfigurationSaving = {
+                Enabled = false,
+                FolderName = "KimJong",
+                FileName = "Config"
+            },
+            Discord = {
+                Enabled = false
+            },
+            KeySystem = false
+        })
 
--- Tombol Panic (💀)
-local panicBtn = Instance.new("TextButton")
-panicBtn.Size = UDim2.new(0, 30, 0, 20)
-panicBtn.Position = UDim2.new(1, -65, 0, 2)
-panicBtn.Text = "💀"
-panicBtn.BackgroundColor3 = Color3.fromRGB(200, 20, 20)
-panicBtn.Font = Enum.Font.GothamBold
-panicBtn.TextSize = 14
-panicBtn.Parent = mainFrame
-Instance.new("UICorner", panicBtn).CornerRadius = UDim.new(0, 4)
+        -- ================================================
+        -- TAB 1: FITUR UTAMA
+        -- ================================================
+        MainTab = Window:CreateTab("⚡ Fitur Utama", 4483362458)
 
--- Tombol Minimize (-)
-local minBtn = Instance.new("TextButton")
-minBtn.Size = UDim2.new(0, 30, 0, 20)
-minBtn.Position = UDim2.new(1, -33, 0, 2)
-minBtn.Text = "-"
-minBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-minBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-minBtn.Font = Enum.Font.GothamBold
-minBtn.TextSize = 16
-minBtn.Parent = mainFrame
-Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 4)
+        -- Section: Auto Answer
+        local AutoSection = MainTab:CreateSection("Auto Answer Sambung Kata")
 
-local targetInput = Instance.new("TextBox")
-targetInput.Size = UDim2.new(1, -10, 0, 25)
-targetInput.Position = UDim2.new(0, 5, 0, 25)
-targetInput.PlaceholderText = "🎯 Target Sniper (Opsional)"
-targetInput.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-targetInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-targetInput.Font = Enum.Font.Gotham
-targetInput.TextSize = 11
-targetInput.Text = ""
-targetInput.Parent = mainFrame
-Instance.new("UICorner", targetInput).CornerRadius = UDim.new(0, 4)
+        -- Toggle Auto Answer ON/OFF
+        MainTab:CreateToggle({
+            Name = "🎯 Auto Answer",
+            CurrentValue = _G.KimjongAutoAnswer,
+            Flag = "AutoAnswerToggle",
+            Callback = function(Value)
+                _G.KimjongAutoAnswer = Value
+                Rayfield:Notify({
+                    Title = "Auto Answer",
+                    Content = Value and "✅ Diaktifkan" or "❌ Dinonaktifkan",
+                    Duration = 3,
+                    Image = 4483362458
+                })
+            end,
+        })
 
-local toggleBtn = Instance.new("TextButton")
-toggleBtn.Size = UDim2.new(1, -10, 0, 30)
-toggleBtn.Position = UDim2.new(0, 5, 0, 55)
-toggleBtn.Text = "🤖 AUTO TYPER: OFF"
-toggleBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
-toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleBtn.Font = Enum.Font.GothamBold
-toggleBtn.TextSize = 12
-toggleBtn.Parent = mainFrame
-Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 6)
+        -- Toggle Auto Join Round
+        MainTab:CreateToggle({
+            Name = "🔄 Auto Join Round",
+            CurrentValue = _G.KimjongAutoJoin,
+            Flag = "AutoJoinToggle",
+            Callback = function(Value)
+                _G.KimjongAutoJoin = Value
+                Rayfield:Notify({
+                    Title = "Auto Join",
+                    Content = Value and "✅ Diaktifkan" or "❌ Dinonaktifkan",
+                    Duration = 3
+                })
+            end,
+        })
 
-local brutalBtn = Instance.new("TextButton")
-brutalBtn.Size = UDim2.new(0.5, -7, 0, 25)
-brutalBtn.Position = UDim2.new(0, 5, 0, 90)
-brutalBtn.Text = "⚡ Brutal: OFF"
-brutalBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-brutalBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-brutalBtn.Font = Enum.Font.GothamBold
-brutalBtn.TextSize = 11
-brutalBtn.Parent = mainFrame
-Instance.new("UICorner", brutalBtn).CornerRadius = UDim.new(0, 4)
+        -- Toggle Anti-AFK
+        MainTab:CreateToggle({
+            Name = "🛡️ Anti-AFK",
+            CurrentValue = _G.KimjongAntiAFK,
+            Flag = "AntiAFKToggle",
+            Callback = function(Value)
+                _G.KimjongAntiAFK = Value
+                Rayfield:Notify({
+                    Title = "Anti-AFK",
+                    Content = Value and "✅ Diaktifkan" or "❌ Dinonaktifkan",
+                    Duration = 3
+                })
+            end,
+        })
 
-local tauntBtn = Instance.new("TextButton")
-tauntBtn.Size = UDim2.new(0.5, -7, 0, 25)
-tauntBtn.Position = UDim2.new(0.5, 2, 0, 90)
-tauntBtn.Text = "🤬 Taunt: OFF"
-tauntBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-tauntBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-tauntBtn.Font = Enum.Font.GothamBold
-tauntBtn.TextSize = 11
-tauntBtn.Parent = mainFrame
-Instance.new("UICorner", tauntBtn).CornerRadius = UDim.new(0, 4)
+        -- Master Toggle
+        MainTab:CreateToggle({
+            Name = "🔌 Master Toggle (Semua Fitur)",
+            CurrentValue = _G.KimjongEnabled,
+            Flag = "MasterToggle",
+            Callback = function(Value)
+                _G.KimjongEnabled = Value
+                if not Value then
+                    _G.KimjongAutoAnswer = false
+                    _G.KimjongAutoJoin = false
+                end
+                Rayfield:Notify({
+                    Title = "Master Toggle",
+                    Content = Value and "✅ Semua fitur AKTIF" or "❌ Semua fitur NONAKTIF",
+                    Duration = 3
+                })
+            end,
+        })
 
-local intBtn = Instance.new("TextButton")
-intBtn.Size = UDim2.new(1, -10, 0, 25)
-intBtn.Position = UDim2.new(0, 5, 0, 120)
-intBtn.Text = "👹 Mode Intimidasi (Kata Panjang): OFF"
-intBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-intBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-intBtn.Font = Enum.Font.GothamBold
-intBtn.TextSize = 10
-intBtn.Parent = mainFrame
-Instance.new("UICorner", intBtn).CornerRadius = UDim.new(0, 4)
+        -- Slider untuk delay
+        MainTab:CreateSlider({
+            Name = "⏱️ Delay Minimum (detik)",
+            Range = {1, 10},
+            Increment = 0.5,
+            Suffix = " detik",
+            CurrentValue = _G.KimjongDelay[1],
+            Flag = "MinDelay",
+            Callback = function(Value)
+                _G.KimjongDelay[1] = Value
+            end,
+        })
 
-local resetBtn = Instance.new("TextButton")
-resetBtn.Size = UDim2.new(0.5, -7, 0, 25)
-resetBtn.Position = UDim2.new(0, 5, 0, 150)
-resetBtn.Text = "🔄 Reset Memori"
-resetBtn.BackgroundColor3 = Color3.fromRGB(40, 100, 180)
-resetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-resetBtn.Font = Enum.Font.GothamBold
-resetBtn.TextSize = 10
-resetBtn.Parent = mainFrame
-Instance.new("UICorner", resetBtn).CornerRadius = UDim.new(0, 4)
+        MainTab:CreateSlider({
+            Name = "⏱️ Delay Maksimum (detik)",
+            Range = {2, 15},
+            Increment = 0.5,
+            Suffix = " detik",
+            CurrentValue = _G.KimjongDelay[2],
+            Flag = "MaxDelay",
+            Callback = function(Value)
+                _G.KimjongDelay[2] = Value
+            end,
+        })
 
-local hopBtn = Instance.new("TextButton")
-hopBtn.Size = UDim2.new(0.5, -7, 0, 25)
-hopBtn.Position = UDim2.new(0.5, 2, 0, 150)
-hopBtn.Text = "🚪 Server Hop"
-hopBtn.BackgroundColor3 = Color3.fromRGB(120, 60, 180)
-hopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-hopBtn.Font = Enum.Font.GothamBold
-hopBtn.TextSize = 10
-hopBtn.Parent = mainFrame
-Instance.new("UICorner", hopBtn).CornerRadius = UDim.new(0, 4)
+        -- Section: Statistik
+        local StatsSection = MainTab:CreateSection("📊 Statistik")
 
-local statsLabel = Instance.new("TextLabel")
-statsLabel.Size = UDim2.new(1, 0, 0, 20)
-statsLabel.Position = UDim2.new(0, 0, 0, 180)
-statsLabel.BackgroundTransparency = 1
-statsLabel.Text = "Kata Terketik: 0 | Memori: 0"
-statsLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-statsLabel.Font = Enum.Font.GothamBold
-statsLabel.TextSize = 11
-statsLabel.Parent = mainFrame
+        -- Label statistik (akan diupdate secara berkala)
+        local StatsLabel = MainTab:CreateLabel("Kata terpakai: 0 | Database: " .. 
+            tostring(#(function()
+                local count = 0
+                for _, words in pairs(KamusIndonesia) do
+                    count = count + #words
+                end
+                return {count}
+            end)()[1] or 0) .. " kata")
 
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(1, 0, 0, 20)
-statusLabel.Position = UDim2.new(0, 0, 0, 200)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "Mengunduh Database..."
-statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-statusLabel.Font = Enum.Font.GothamMedium
-statusLabel.TextSize = 11
-statusLabel.Parent = mainFrame
+        -- ================================================
+        -- TAB 2: WORD LOG
+        -- ================================================
+        LogTab = Window:CreateTab("📋 Word Log", 4483362458)
 
--- ==========================================
--- LOGIKA UI & TOMBOL
--- ==========================================
-targetInput.FocusLost:Connect(function() targetPlayer = string.lower(targetInput.Text) end)
+        local LogSection = LogTab:CreateSection("Riwayat Kata")
 
-panicBtn.MouseButton1Click:Connect(function()
-    isEnabled = false
-    screenGui:Destroy()
-end)
+        -- Label yang akan diupdate dengan kata-kata yang sudah digunakan
+        local LogLabel = LogTab:CreateLabel("Belum ada kata yang digunakan...")
 
-minBtn.MouseButton1Click:Connect(function()
-    isMinimized = not isMinimized
-    if isMinimized then
-        mainFrame.Size = UDim2.new(0, 230, 0, 25)
-        for _, child in ipairs(mainFrame:GetChildren()) do
-            if child:IsA("GuiObject") and child ~= titleLabel and child ~= minBtn and child ~= panicBtn and not child:IsA("UICorner") then
-                child.Visible = false
-            end
-        end
-        minBtn.Text = "+"
-    else
-        mainFrame.Size = UDim2.new(0, 230, 0, 230)
-        for _, child in ipairs(mainFrame:GetChildren()) do
-            if child:IsA("GuiObject") then child.Visible = true end
-        end
-        minBtn.Text = "-"
-    end
-end)
+        -- Tombol reset log
+        LogTab:CreateButton({
+            Name = "🗑️ Hapus Semua Log",
+            Callback = function()
+                UsedWordsLog = {}
+                UsedThisRound = {}
+                pcall(function()
+                    LogLabel:Set("Belum ada kata yang digunakan...")
+                end)
+                Rayfield:Notify({
+                    Title = "Log Dihapus",
+                    Content = "Semua riwayat kata telah dihapus.",
+                    Duration = 3
+                })
+            end,
+        })
 
-toggleBtn.MouseButton1Click:Connect(function()
-    if not isLoaded then return end
-    isEnabled = not isEnabled
-    toggleBtn.Text = isEnabled and "🤖 AUTO TYPER: ON" or "🤖 AUTO TYPER: OFF"
-    toggleBtn.BackgroundColor3 = isEnabled and Color3.fromRGB(40, 200, 40) or Color3.fromRGB(200, 40, 40)
-    statusLabel.Text = isEnabled and "Mode Siluman Aktif..." or "Berhenti."
-end)
+        -- ================================================
+        -- TAB 3: SETTINGS & CUSTOM WORD
+        -- ================================================
+        SettingsTab = Window:CreateTab("⚙️ Pengaturan", 4483362458)
 
-brutalBtn.MouseButton1Click:Connect(function()
-    isBrutal = not isBrutal
-    brutalBtn.Text = isBrutal and "⚡ Brutal: ON" or "⚡ Brutal: OFF"
-    brutalBtn.BackgroundColor3 = isBrutal and Color3.fromRGB(255, 120, 0) or Color3.fromRGB(80, 80, 80)
-end)
+        local CustomSection = SettingsTab:CreateSection("📝 Tambah Kata Kustom")
 
-tauntBtn.MouseButton1Click:Connect(function()
-    isTaunting = not isTaunting
-    tauntBtn.Text = isTaunting and "🤬 Taunt: ON" or "🤬 Taunt: OFF"
-    tauntBtn.BackgroundColor3 = isTaunting and Color3.fromRGB(200, 50, 150) or Color3.fromRGB(80, 80, 80)
-end)
+        -- TextBox untuk menambahkan kata baru ke database
+        SettingsTab:CreateInput({
+            Name = "Tambah Kata Baru",
+            PlaceholderText = "Ketik kata baru di sini (contoh: Algoritma)",
+            RemoveTextAfterFocusLost = true,
+            Callback = function(Text)
+                if Text and Text ~= "" then
+                    -- Bersihkan dan kapitalisasi kata
+                    local kata = Text:gsub("^%s+", ""):gsub("%s+$", "")
+                    kata = kata:sub(1, 1):upper() .. kata:sub(2):lower()
 
-intBtn.MouseButton1Click:Connect(function()
-    isIntimidate = not isIntimidate
-    intBtn.Text = isIntimidate and "👹 Mode Intimidasi: ON" or "👹 Mode Intimidasi: OFF"
-    intBtn.BackgroundColor3 = isIntimidate and Color3.fromRGB(180, 30, 30) or Color3.fromRGB(80, 80, 80)
-end)
+                    -- Ambil huruf awal untuk pengelompokan
+                    local hurufAwal = kata:sub(1, 1):upper()
 
-resetBtn.MouseButton1Click:Connect(function()
-    usedWords = {}
-    statusLabel.Text = "Memori dibersihkan!"
-end)
+                    -- Pastikan kategori huruf ada di kamus
+                    if not KamusIndonesia[hurufAwal] then
+                        KamusIndonesia[hurufAwal] = {}
+                    end
 
-hopBtn.MouseButton1Click:Connect(function()
-    TeleportService:Teleport(game.PlaceId, LocalPlayer)
-end)
+                    -- Cek apakah kata sudah ada (hindari duplikat)
+                    local sudahAda = false
+                    for _, existingWord in ipairs(KamusIndonesia[hurufAwal]) do
+                        if existingWord:lower() == kata:lower() then
+                            sudahAda = true
+                            break
+                        end
+                    end
 
--- ==========================================
--- CLOUD DICTIONARY (Silent Download)
--- ==========================================
-local learnedWordsCount = 0
-task.spawn(function()
-    local url = "https://raw.githubusercontent.com/ramaprakoso/analisis-sentimen/master/kamus/kata_dasar.txt"
-    local successHttp, response = pcall(function() return game:HttpGet(url) end)
+                    if not sudahAda then
+                        table.insert(KamusIndonesia[hurufAwal], kata)
+                        Rayfield:Notify({
+                            Title = "✅ Kata Ditambahkan",
+                            Content = '"' .. kata .. '" berhasil ditambahkan ke database (Huruf ' .. hurufAwal .. ')',
+                            Duration = 4
+                        })
+                    else
+                        Rayfield:Notify({
+                            Title = "⚠️ Kata Sudah Ada",
+                            Content = '"' .. kata .. '" sudah ada di database.',
+                            Duration = 3
+                        })
+                    end
+                end
+            end,
+        })
 
-    if successHttp and response then
-        for word in string.gmatch(response, "[^\r\n]+") do
-            local cleanWord = string.lower(string.match(word, "%a+") or "")
-            if cleanWord and #cleanWord > 2 then table.insert(kamus, cleanWord) end
-        end
-        isLoaded = true
-        statusLabel.Text = "Phantom DB: " .. #kamus .. " Kata"
-    else
-        kamus = {"ayam", "buku", "cinta", "dunia", "elang", "foto", "gajah", "hari", "ikan", "jalan", "kuda", "laut", "makan", "nama", "obat", "pintu", "quran", "rumah", "sapi", "tikus", "ular", "voli", "waktu", "xenon", "yoyo", "zaman", "estetika", "helikopter", "implementasi", "kesejahteraan"}
-        isLoaded = true
-    end
-end)
+        -- Tombol untuk melihat jumlah kata per huruf
+        SettingsTab:CreateButton({
+            Name = "📊 Lihat Statistik Database",
+            Callback = function()
+                local stats = "=== STATISTIK DATABASE ===\n"
+                local totalKata = 0
+                for letter = string.byte("A"), string.byte("Z") do
+                    local huruf = string.char(letter)
+                    local jumlah = KamusIndonesia[huruf] and #KamusIndonesia[huruf] or 0
+                    totalKata = totalKata + jumlah
+                    if jumlah > 0 then
+                        stats = stats .. huruf .. ": " .. jumlah .. " kata\n"
+                    end
+                end
+                stats = stats .. "\nTOTAL: " .. totalKata .. " kata"
 
--- ==========================================
--- CORE LOGIC, MACHINE LEARNING & SNIPER
--- ==========================================
-local function sendChatMessage(message)
-    if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-        local textChannel = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
-        if textChannel then textChannel:SendAsync(message) end
-    else
-        ReplicatedStorage:WaitForChild("DefaultChatSystemChatEvents"):WaitForChild("SayMessageRequest"):FireServer(message, "All")
+                Rayfield:Notify({
+                    Title = "📊 Database",
+                    Content = "Total " .. totalKata .. " kata tersedia.",
+                    Duration = 5
+                })
+            end,
+        })
+
+        -- Info Section
+        local InfoSection = SettingsTab:CreateSection("ℹ️ Informasi")
+
+        SettingsTab:CreateLabel("Script KimJong v2.0")
+        SettingsTab:CreateLabel("Auto Answer Sambung Kata")
+        SettingsTab:CreateLabel("Gunakan dengan bijak!")
+
+        -- Tombol destroy UI
+        SettingsTab:CreateButton({
+            Name = "❌ Tutup & Hentikan Script",
+            Callback = function()
+                _G.KimjongEnabled = false
+                _G.KimjongAutoAnswer = false
+                _G.KimjongAutoJoin = false
+                _G.KimjongAntiAFK = false
+                pcall(function()
+                    Rayfield:Destroy()
+                end)
+            end,
+        })
+
+        -- Simpan referensi LogLabel dan StatsLabel secara global untuk update
+        _G._KimjongLogLabel = LogLabel
+        _G._KimjongStatsLabel = StatsLabel
+    end)
+
+    if not uiSuccess then
+        warn("[KimJong] Gagal membuat UI: " .. tostring(uiErr))
     end
 end
 
-local function isWordInKamus(word)
-    for _, w in ipairs(kamus) do if w == word then return true end end
-    return false
+-- ============================================================
+-- BAGIAN 5: FUNGSI UTILITAS
+-- ============================================================
+
+--- Menghasilkan delay acak antara min dan max detik
+--- @return number - Waktu delay acak
+local function GetRandomDelay()
+    local minDelay = _G.KimjongDelay[1] or 2
+    local maxDelay = _G.KimjongDelay[2] or 5
+    -- Pastikan min tidak lebih besar dari max
+    if minDelay > maxDelay then
+        minDelay, maxDelay = maxDelay, minDelay
+    end
+    return minDelay + math.random() * (maxDelay - minDelay)
 end
 
-local function getNextWord(lastLetter)
+--- Mendapatkan huruf terakhir dari sebuah kata (case-insensitive, uppercase)
+--- @param kata string - Kata yang akan diambil huruf terakhirnya
+--- @return string - Huruf terakhir dalam uppercase
+local function GetHurufTerakhir(kata)
+    if not kata or kata == "" then return "" end
+    -- Bersihkan spasi dan karakter khusus di akhir
+    kata = kata:gsub("[%s%p]+$", "")
+    if kata == "" then return "" end
+    return kata:sub(-1, -1):upper()
+end
+
+--- Mencari kata dari database yang berawalan huruf tertentu
+--- Menghindari kata yang sudah dipakai di ronde ini
+--- @param huruf string - Huruf awal yang dicari
+--- @return string|nil - Kata yang ditemukan, atau nil jika tidak ada
+local function CariKata(huruf)
+    huruf = huruf:upper()
+
+    -- Cek apakah ada kata di database untuk huruf ini
+    if not KamusIndonesia[huruf] or #KamusIndonesia[huruf] == 0 then
+        warn("[KimJong] Tidak ada kata untuk huruf: " .. huruf)
+        return nil
+    end
+
+    -- Kumpulkan kata-kata yang belum dipakai
     local availableWords = {}
-    
-    -- Kumpulkan semua kata yang valid
-    for _, word in ipairs(kamus) do
-        if string.sub(word, 1, 1) == lastLetter and not usedWords[word] then
-            table.insert(availableWords, word)
+    for _, kata in ipairs(KamusIndonesia[huruf]) do
+        if not UsedThisRound[kata:lower()] then
+            table.insert(availableWords, kata)
         end
     end
 
-    if #availableWords == 0 then return nil end
-
-    -- Logika Mode Intimidasi (Cari kata terpanjang)
-    if isIntimidate then
-        table.sort(availableWords, function(a, b) return #a > #b end)
-        -- Ambil salah satu dari 3 kata terpanjang agar tidak selalu sama
-        local topLimit = math.min(3, #availableWords)
-        return availableWords[math.random(1, topLimit)]
+    -- Jika semua kata sudah dipakai, reset dan coba lagi
+    if #availableWords == 0 then
+        warn("[KimJong] Semua kata huruf " .. huruf .. " sudah terpakai, mereset...")
+        -- Reset hanya kata-kata dengan huruf ini
+        for _, kata in ipairs(KamusIndonesia[huruf]) do
+            UsedThisRound[kata:lower()] = nil
+        end
+        availableWords = KamusIndonesia[huruf]
     end
 
-    -- Logika Normal (Utamakan killer letters)
-    local killerWords = {}
-    for _, word in ipairs(availableWords) do
-        local endLetter = string.sub(word, #word, #word)
-        if killerLetters[endLetter] then table.insert(killerWords, word) end
-    end
+    -- Pilih kata secara random dari yang tersedia
+    local index = math.random(1, #availableWords)
+    local selectedWord = availableWords[index]
 
-    if #killerWords > 0 and math.random(1, 10) <= 8 then 
-        return killerWords[math.random(1, #killerWords)] 
-    end
+    -- Tandai kata sebagai sudah dipakai
+    UsedThisRound[selectedWord:lower()] = true
 
-    return availableWords[math.random(1, #availableWords)]
+    return selectedWord
 end
 
-local function onMessageDone(message, senderName)
-    if not isEnabled or not isLoaded then return end
-    
-    local senderLower = string.lower(senderName)
-    local isVIP = vipWhitelist[senderLower]
+--- Menambahkan kata ke log dan memperbarui UI
+--- @param kata string - Kata yang digunakan
+--- @param hurufDari string - Huruf yang diminta (huruf terakhir kata sebelumnya)
+local function LogKata(kata, hurufDari)
+    local timestamp = os.date("%H:%M:%S")
+    local entry = string.format("[%s] %s → %s", timestamp, hurufDari, kata)
+    table.insert(UsedWordsLog, entry)
 
-    -- Sniper Check
-    if targetPlayer ~= "" and not string.find(senderLower, targetPlayer) then return end
-    if targetPlayer ~= "" and isVIP then return end 
-
-    local cleanMessage = string.lower(message)
-    local words = string.split(cleanMessage, " ")
-    local lastWord = string.match(words[#words], "%a+")
-
-    if senderName == LocalPlayer.Name then 
-        if lastWord then usedWords[lastWord] = true end
-        return 
+    -- Batasi log agar tidak terlalu banyak (simpan 50 terakhir)
+    if #UsedWordsLog > 50 then
+        table.remove(UsedWordsLog, 1)
     end
 
-    if lastWord and #lastWord > 0 then
-        -- Simpan kata baru
-        if not isWordInKamus(lastWord) and #lastWord > 2 then
-            table.insert(kamus, lastWord)
-            learnedWordsCount = learnedWordsCount + 1
-            statsLabel.Text = "Kata Terketik: " .. wordsTyped .. " | Memori Baru: " .. learnedWordsCount
-        end
-
-        usedWords[lastWord] = true
-        local lastLetter = string.sub(lastWord, #lastWord, #lastWord)
-        local nextWord = getNextWord(lastLetter)
-
-        if nextWord then
-            usedWords[nextWord] = true 
-            statusLabel.Text = "> " .. nextWord
-            
-            if isBrutal then task.wait(0.1) else
-                task.wait(math.random(6, 12) / 10 + (#nextWord * math.random(8, 15)) / 100)
+    -- Update UI log jika tersedia
+    pcall(function()
+        if _G._KimjongLogLabel then
+            -- Tampilkan 15 entry terakhir
+            local displayLog = ""
+            local startIdx = math.max(1, #UsedWordsLog - 14)
+            for i = #UsedWordsLog, startIdx, -1 do
+                displayLog = displayLog .. UsedWordsLog[i] .. "\n"
             end
-            
-            sendChatMessage(nextWord)
-            wordsTyped = wordsTyped + 1
-            statsLabel.Text = "Kata Terketik: " .. wordsTyped .. " | Memori Baru: " .. learnedWordsCount
-
-            -- Smart Taunt Logic (Menyebut nama target)
-            if isTaunting and not isVIP and math.random(1, 4) == 1 then
-                task.wait(1.5)
-                local selectedTaunt = smartTaunts[math.random(1, #smartTaunts)]
-                -- Mengganti %s dengan nama asli musuh
-                local finalTaunt = string.format(selectedTaunt, senderName)
-                sendChatMessage(finalTaunt)
-            end
-        else
-            statusLabel.Text = "Huruf " .. string.upper(lastLetter) .. " Habis!"
-        end
-    end
-end
-
--- ==========================================
--- KONEKSI CHAT
--- ==========================================
-if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-    TextChatService.MessageReceived:Connect(function(textChatMessage)
-        if textChatMessage.TextSource then
-            local senderId = textChatMessage.TextSource.UserId
-            local senderPlayer = Players:GetPlayerByUserId(senderId)
-            if senderPlayer then onMessageDone(textChatMessage.Text, senderPlayer.Name) end
+            _G._KimjongLogLabel:Set(displayLog)
         end
     end)
-else
-    local function connectPlayer(player)
-        player.Chatted:Connect(function(msg) onMessageDone(msg, player.Name) end)
-    end
-    for _, player in ipairs(Players:GetPlayers()) do connectPlayer(player) end
-    Players.PlayerAdded:Connect(connectPlayer)
+
+    -- Update statistik
+    pcall(function()
+        if _G._KimjongStatsLabel then
+            local totalDB = 0
+            for _, words in pairs(KamusIndonesia) do
+                totalDB = totalDB + #words
+            end
+            _G._KimjongStatsLabel:Set(
+                "Kata terpakai: " .. #UsedWordsLog .. " | Database: " .. totalDB .. " kata"
+            )
+        end
+    end)
 end
 
-print("Phantom V7 by kimjong sc. Mode Senyap & Intimidasi aktif!")
+--- Simulasi mengetik di TextBox game
+--- Mengirimkan teks karakter per karakter untuk terlihat natural
+--- @param textbox Instance - TextBox target di game
+--- @param text string - Teks yang akan diketik
+local function SimulasiKetik(textbox, text)
+    pcall(function()
+        if textbox and textbox:IsA("TextBox") then
+            -- Fokus ke textbox
+            textbox:CaptureFocus()
+            task.wait(0.3)
+
+            -- Ketik karakter satu per satu untuk efek natural
+            textbox.Text = ""
+            for i = 1, #text do
+                textbox.Text = text:sub(1, i)
+                -- Delay kecil antar karakter (50-150ms)
+                task.wait(0.05 + math.random() * 0.1)
+            end
+
+            task.wait(0.2)
+
+            -- Simulasi tekan Enter untuk mengirim
+            -- Beberapa game menggunakan FocusLost event
+            textbox:ReleaseFocus(true) -- true = enterPressed
+        end
+    end)
+end
+
+--- Mencari TextBox input di PlayerGui secara rekursif
+--- @param parent Instance - Parent untuk mulai pencarian
+--- @return Instance|nil - TextBox yang ditemukan
+local function FindInputTextBox(parent)
+    local result = nil
+    pcall(function()
+        -- Cari di semua descendants
+        for _, descendant in ipairs(parent:GetDescendants()) do
+            if descendant:IsA("TextBox") and descendant.Visible ~= false then
+                -- Cari TextBox yang kemungkinan digunakan untuk input jawaban
+                local name = descendant.Name:lower()
+                if name:find("input") or name:find("answer") or name:find("text")
+                    or name:find("chat") or name:find("type") or name:find("jawab")
+                    or name:find("kata") or name:find("box") then
+                    result = descendant
+                    return
+                end
+            end
+        end
+
+        -- Jika tidak ditemukan dengan nama spesifik, ambil TextBox pertama yang visible
+        if not result then
+            for _, descendant in ipairs(parent:GetDescendants()) do
+                if descendant:IsA("TextBox") and descendant.Visible ~= false then
+                    -- Pastikan TextBox ini bisa berinteraksi
+                    local parentGui = descendant:FindFirstAncestorOfClass("ScreenGui")
+                    if parentGui and parentGui.Enabled ~= false then
+                        result = descendant
+                        return
+                    end
+                end
+            end
+        end
+    end)
+    return result
+end
+
+--- Mencari TextLabel yang menampilkan kata terakhir/pertanyaan
+--- @param parent Instance - Parent untuk mulai pencarian
+--- @return Instance|nil - TextLabel yang ditemukan
+local function FindQuestionLabel(parent)
+    local result = nil
+    local candidates = {}
+
+    pcall(function()
+        for _, descendant in ipairs(parent:GetDescendants()) do
+            if (descendant:IsA("TextLabel") or descendant:IsA("TextButton")) 
+                and descendant.Visible ~= false then
+                local name = descendant.Name:lower()
+                local text = descendant.Text or ""
+
+                -- Prioritaskan label dengan nama terkait pertanyaan/kata
+                if name:find("question") or name:find("word") or name:find("kata")
+                    or name:find("soal") or name:find("current") or name:find("display")
+                    or name:find("prompt") or name:find("last") or name:find("sambung") then
+                    table.insert(candidates, {priority = 1, instance = descendant})
+                elseif text ~= "" and #text > 1 and #text < 50 then
+                    -- Label dengan teks yang masuk akal (bukan terlalu pendek/panjang)
+                    table.insert(candidates, {priority = 2, instance = descendant})
+                end
+            end
+        end
+    end)
+
+    -- Urutkan berdasarkan prioritas
+    table.sort(candidates, function(a, b) return a.priority < b.priority end)
+
+    if #candidates > 0 then
+        result = candidates[1].instance
+    end
+
+    return result
+end
+
+--- Mencari tombol join/play di game
+--- @param parent Instance - Parent untuk mulai pencarian
+--- @return Instance|nil - Button yang ditemukan
+local function FindJoinButton(parent)
+    local result = nil
+    pcall(function()
+        for _, descendant in ipairs(parent:GetDescendants()) do
+            if descendant:IsA("TextButton") or descendant:IsA("ImageButton") then
+                local name = descendant.Name:lower()
+                local text = ""
+                if descendant:IsA("TextButton") then
+                    text = (descendant.Text or ""):lower()
+                end
+
+                if name:find("join") or name:find("play") or name:find("mulai")
+                    or name:find("start") or name:find("main") or name:find("masuk")
+                    or text:find("join") or text:find("play") or text:find("mulai")
+                    or text:find("main") or text:find("masuk") then
+                    result = descendant
+                    return
+                end
+            end
+        end
+    end)
+    return result
+end
+
+-- ============================================================
+-- BAGIAN 6: ANTI-AFK SYSTEM
+-- ============================================================
+
+--- Sistem Anti-AFK yang mencegah player di-kick karena idle
+--- Bekerja dengan menghubungkan dan memblokir sinyal idle dari Roblox
+local function SetupAntiAFK()
+    pcall(function()
+        -- Metode 1: Override idle event
+        local connection
+        connection = LocalPlayer.Idled:Connect(function()
+            if _G.KimjongAntiAFK and _G.KimjongEnabled then
+                -- Simulasi aktivitas dengan menggerakkan mouse virtual
+                pcall(function()
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                    task.wait(0.1)
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                end)
+
+                -- Notifikasi
+                pcall(function()
+                    if Rayfield then
+                        Rayfield:Notify({
+                            Title = "Anti-AFK",
+                            Content = "🛡️ Idle terdeteksi, aktivitas disimulasikan.",
+                            Duration = 2
+                        })
+                    end
+                end)
+            end
+        end)
+
+        print("[KimJong] Anti-AFK berhasil disetup.")
+    end)
+end
+
+-- ============================================================
+-- BAGIAN 7: DETEKSI REMOTE EVENT GAME
+-- ============================================================
+
+--- Memonitor RemoteEvent untuk mendeteksi kata dari game
+--- Beberapa game Sambung Kata menggunakan RemoteEvent untuk broadcast kata
+local function SetupRemoteListener()
+    pcall(function()
+        -- Cari semua RemoteEvent di ReplicatedStorage
+        for _, remote in ipairs(ReplicatedStorage:GetDescendants()) do
+            if remote:IsA("RemoteEvent") then
+                local remoteName = remote.Name:lower()
+
+                -- Filter remote yang mungkin terkait game sambung kata
+                if remoteName:find("word") or remoteName:find("kata")
+                    or remoteName:find("answer") or remoteName:find("sambung")
+                    or remoteName:find("game") or remoteName:find("round")
+                    or remoteName:find("question") or remoteName:find("chat") then
+
+                    pcall(function()
+                        remote.OnClientEvent:Connect(function(...)
+                            if not _G.KimjongEnabled or not _G.KimjongAutoAnswer then
+                                return
+                            end
+
+                            local args = {...}
+
+                            -- Coba proses setiap argumen sebagai kata
+                            for _, arg in ipairs(args) do
+                                if type(arg) == "string" and #arg > 1 then
+                                    local hurufTerakhir = GetHurufTerakhir(arg)
+
+                                    if hurufTerakhir ~= "" then
+                                        local jawaban = CariKata(hurufTerakhir)
+
+                                        if jawaban then
+                                            -- Delay random sebelum menjawab
+                                            local delay = GetRandomDelay()
+                                            print("[KimJong] Kata terdeteksi via Remote: '" .. arg .. 
+                                                "' → Huruf: " .. hurufTerakhir .. 
+                                                " → Jawaban: " .. jawaban ..
+                                                " (delay: " .. string.format("%.1f", delay) .. "s)")
+
+                                            task.wait(delay)
+
+                                            -- Cari TextBox dan kirim jawaban
+                                            local inputBox = FindInputTextBox(PlayerGui)
+                                            if inputBox then
+                                                SimulasiKetik(inputBox, jawaban)
+                                                LogKata(jawaban, hurufTerakhir)
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end)
+                    end)
+                end
+            end
+        end
+
+        print("[KimJong] Remote listener berhasil disetup.")
+    end)
+end
+
+-- ============================================================
+-- BAGIAN 8: DETEKSI UI GAME (POLLING)
+-- ============================================================
+
+--- Loop utama yang memonitor perubahan UI game
+--- Mendeteksi kata yang ditampilkan dan memberikan jawaban otomatis
+local function MainAutoAnswerLoop()
+    local lastDetectedWord = "" -- Simpan kata terakhir agar tidak memproses ulang
+
+    while _G.KimjongEnabled do
+        pcall(function()
+            if _G.KimjongAutoAnswer then
+                -- Cari label pertanyaan di PlayerGui
+                local questionLabel = FindQuestionLabel(PlayerGui)
+
+                if questionLabel then
+                    local currentWord = questionLabel.Text or ""
+                    currentWord = currentWord:gsub("^%s+", ""):gsub("%s+$", "")
+
+                    -- Hanya proses jika kata berubah (bukan kata yang sama)
+                    if currentWord ~= "" and currentWord ~= lastDetectedWord and #currentWord > 1 then
+                        lastDetectedWord = currentWord
+
+                        local hurufTerakhir = GetHurufTerakhir(currentWord)
+
+                        if hurufTerakhir ~= "" and hurufTerakhir:match("[A-Z]") then
+                            local jawaban = CariKata(hurufTerakhir)
+
+                            if jawaban then
+                                -- Delay random agar terlihat natural
+                                local delay = GetRandomDelay()
+
+                                print("[KimJong] UI Detected: '" .. currentWord .. 
+                                    "' → Huruf: " .. hurufTerakhir .. 
+                                    " → Jawaban: " .. jawaban ..
+                                    " (delay: " .. string.format("%.1f", delay) .. "s)")
+
+                                -- Notifikasi di UI
+                                pcall(function()
+                                    if Rayfield then
+                                        Rayfield:Notify({
+                                            Title = "🎯 Kata Terdeteksi",
+                                            Content = currentWord .. " → " .. jawaban,
+                                            Duration = 3
+                                        })
+                                    end
+                                end)
+
+                                task.wait(delay)
+
+                                -- Verifikasi masih enabled setelah delay
+                                if _G.KimjongEnabled and _G.KimjongAutoAnswer then
+                                    -- Cari TextBox input dan kirim jawaban
+                                    local inputBox = FindInputTextBox(PlayerGui)
+
+                                    if inputBox then
+                                        SimulasiKetik(inputBox, jawaban)
+                                        LogKata(jawaban, hurufTerakhir)
+                                        print("[KimJong] ✅ Jawaban terkirim: " .. jawaban)
+                                    else
+                                        -- Alternatif: coba kirim via remote
+                                        pcall(function()
+                                            for _, remote in ipairs(ReplicatedStorage:GetDescendants()) do
+                                                if remote:IsA("RemoteEvent") then
+                                                    local rName = remote.Name:lower()
+                                                    if rName:find("answer") or rName:find("submit")
+                                                        or rName:find("send") or rName:find("chat")
+                                                        or rName:find("kata") or rName:find("jawab") then
+                                                        remote:FireServer(jawaban)
+                                                        LogKata(jawaban, hurufTerakhir)
+                                                        print("[KimJong] ✅ Jawaban dikirim via Remote: " .. jawaban)
+                                                        break
+                                                    end
+                                                end
+                                            end
+                                        end)
+                                    end
+                                end
+                            else
+                                warn("[KimJong] ⚠️ Tidak ada kata untuk huruf: " .. hurufTerakhir)
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+
+        -- Interval polling (0.5 detik untuk responsif tapi tidak terlalu berat)
+        task.wait(0.5)
+    end
+
+    print("[KimJong] Main loop dihentikan.")
+end
+
+-- ============================================================
+-- BAGIAN 9: AUTO JOIN ROUND
+-- ============================================================
+
+--- Loop yang memonitor dan otomatis bergabung ke ronde baru
+local function AutoJoinLoop()
+    while _G.KimjongEnabled do
+        pcall(function()
+            if _G.KimjongAutoJoin then
+                -- Cari tombol join di PlayerGui
+                local joinButton = FindJoinButton(PlayerGui)
+
+                if joinButton and joinButton.Visible ~= false then
+                    -- Cek apakah tombol bisa diklik
+                    local parentGui = joinButton:FindFirstAncestorOfClass("ScreenGui")
+                    if parentGui and parentGui.Enabled ~= false then
+                        print("[KimJong] 🔄 Tombol join ditemukan, bergabung...")
+
+                        -- Delay singkat sebelum join
+                        task.wait(1 + math.random() * 2)
+
+                        -- Klik tombol
+                        pcall(function()
+                            -- Gunakan fireclick jika executor mendukung
+                            if fireclickdetector then
+                                fireclickdetector(joinButton)
+                            elseif firesignal then
+                                firesignal(joinButton.Activated)
+                                firesignal(joinButton.MouseButton1Click)
+                            else
+                                -- Fallback: simulasi mouse click
+                                local pos = joinButton.AbsolutePosition
+                                local size = joinButton.AbsoluteSize
+                                local centerX = pos.X + size.X / 2
+                                local centerY = pos.Y + size.Y / 2
+
+                                pcall(function()
+                                    VirtualInputManager:SendMouseButtonEvent(
+                                        centerX, centerY, 0, true, game, 1
+                                    )
+                                    task.wait(0.05)
+                                    VirtualInputManager:SendMouseButtonEvent(
+                                        centerX, centerY, 0, false, game, 1
+                                    )
+                                end)
+                            end
+                        end)
+
+                        -- Reset kata yang sudah dipakai untuk ronde baru
+                        UsedThisRound = {}
+
+                        pcall(function()
+                            if Rayfield then
+                                Rayfield:Notify({
+                                    Title = "Auto Join",
+                                    Content = "🔄 Bergabung ke ronde baru!",
+                                    Duration = 3
+                                })
+                            end
+                        end)
+
+                        -- Tunggu sebelum cek lagi (hindari spam klik)
+                        task.wait(5)
+                    end
+                end
+            end
+        end)
+
+        -- Cek setiap 2 detik
+        task.wait(2)
+    end
+
+    print("[KimJong] Auto Join loop dihentikan.")
+end
+
+-- ============================================================
+-- BAGIAN 10: MONITOR REMOTE EVENTS BARU
+-- ============================================================
+
+--- Memonitor jika ada RemoteEvent baru yang ditambahkan ke game
+local function MonitorNewRemotes()
+    pcall(function()
+        ReplicatedStorage.DescendantAdded:Connect(function(descendant)
+            if not _G.KimjongEnabled then return end
+
+            if descendant:IsA("RemoteEvent") then
+                local remoteName = descendant.Name:lower()
+
+                if remoteName:find("word") or remoteName:find("kata")
+                    or remoteName:find("answer") or remoteName:find("sambung")
+                    or remoteName:find("game") then
+
+                    pcall(function()
+                        descendant.OnClientEvent:Connect(function(...)
+                            if not _G.KimjongEnabled or not _G.KimjongAutoAnswer then
+                                return
+                            end
+
+                            local args = {...}
+                            for _, arg in ipairs(args) do
+                                if type(arg) == "string" and #arg > 1 then
+                                    local hurufTerakhir = GetHurufTerakhir(arg)
+                                    if hurufTerakhir ~= "" then
+                                        local jawaban = CariKata(hurufTerakhir)
+                                        if jawaban then
+                                            task.wait(GetRandomDelay())
+                                            if _G.KimjongEnabled and _G.KimjongAutoAnswer then
+                                                local inputBox = FindInputTextBox(PlayerGui)
+                                                if inputBox then
+                                                    SimulasiKetik(inputBox, jawaban)
+                                                    LogKata(jawaban, hurufTerakhir)
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end)
+                    end)
+
+                    print("[KimJong] Remote baru terdeteksi dan dimonitor: " .. descendant.Name)
+                end
+            end
+        end)
+    end)
+end
+
+-- ============================================================
+-- BAGIAN 11: MONITOR PERUBAHAN UI GAME
+-- ============================================================
+
+--- Memonitor jika ada UI baru yang muncul di PlayerGui
+local function MonitorUIChanges()
+    pcall(function()
+        PlayerGui.DescendantAdded:Connect(function(descendant)
+            if not _G.KimjongEnabled then return end
+
+            -- Jika TextLabel baru muncul, mungkin itu kata baru
+            if descendant:IsA("TextLabel") and _G.KimjongAutoAnswer then
+                task.wait(0.3) -- Tunggu sebentar agar teks terisi
+
+                pcall(function()
+                    local text = descendant.Text or ""
+                    if text ~= "" and #text > 1 and #text < 30 then
+                        local name = descendant.Name:lower()
+                        if name:find("word") or name:find("kata") or name:find("question")
+                            or name:find("soal") or name:find("current") then
+                            -- Ini mungkin kata baru, biarkan MainAutoAnswerLoop yang handle
+                            print("[KimJong] UI baru terdeteksi: " .. text)
+                        end
+                    end
+                end)
+            end
+        end)
+    end)
+end
+
+-- ============================================================
+-- BAGIAN 12: INISIALISASI & JALANKAN SEMUA SISTEM
+-- ============================================================
+
+print("╔══════════════════════════════════════╗")
+print("║     SCRIPT KIMJONG v2.0 LOADED      ║")
+print("║   Auto Answer Sambung Kata Roblox   ║")
+print("╚══════════════════════════════════════╝")
+
+-- Seed random number generator untuk hasil yang lebih acak
+math.randomseed(tick() + os.time())
+
+-- Setup Anti-AFK (berjalan di background)
+SetupAntiAFK()
+print("[KimJong] ✅ Anti-AFK aktif")
+
+-- Setup Remote Event Listener
+SetupRemoteListener()
+print("[KimJong] ✅ Remote Listener aktif")
+
+-- Monitor remote baru yang mungkin ditambahkan
+MonitorNewRemotes()
+print("[KimJong] ✅ Monitor Remote aktif")
+
+-- Monitor perubahan UI
+MonitorUIChanges()
+print("[KimJong] ✅ Monitor UI aktif")
+
+-- Jalankan Auto Answer Loop di thread terpisah
+task.spawn(function()
+    print("[KimJong] ✅ Auto Answer loop dimulai")
+    MainAutoAnswerLoop()
+end)
+
+-- Jalankan Auto Join Loop di thread terpisah
+task.spawn(function()
+    print("[KimJong] ✅ Auto Join loop dimulai")
+    AutoJoinLoop()
+end)
+
+-- Hitung total kata di database
+local totalWords = 0
+for _, words in pairs(KamusIndonesia) do
+    totalWords = totalWords + #words
+end
+print("[KimJong] 📚 Database: " .. totalWords .. " kata Bahasa Indonesia")
+
+-- Notifikasi script berhasil dimuat
+pcall(function()
+    if Rayfield then
+        Rayfield:Notify({
+            Title = "🚀 Script KimJong v2.0",
+            Content = "Berhasil dimuat! Database: " .. totalWords .. " kata.\nGunakan tab Fitur Utama untuk mengontrol.",
+            Duration = 8,
+            Image = 4483362458
+        })
+    else
+        StarterGui:SetCore("SendNotification", {
+            Title = "Script KimJong",
+            Text = "Berhasil dimuat! (" .. totalWords .. " kata)",
+            Duration = 5
+        })
+    end
+end)
+
+print("[KimJong] ✅ Semua sistem aktif dan berjalan!")
+print("[KimJong] Gunakan _G.KimjongEnabled = false untuk menghentikan.")
